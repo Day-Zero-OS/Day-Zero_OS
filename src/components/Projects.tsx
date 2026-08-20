@@ -13,7 +13,7 @@ import {
 import type { Screen } from '@/types/navigation'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useWorkspace } from '@/features/workspace/context/WorkspaceContext'
-import { LoadingState } from '@/components/feedback/LoadingState'
+import { Skeleton } from '@/components/ui/Skeleton'
 import {
   archiveProject,
   createProject,
@@ -23,6 +23,67 @@ import {
   type ProjectListItem,
 } from '@/features/projects/services/projects.service'
 import { useFormDialog } from '@/components/ui/FormDialog'
+
+function ProjectsSkeleton() {
+  return (
+    <div className="h-full overflow-y-auto p-4 sm:p-6 lg:p-9 animate-pulse">
+      {/* Header Skeleton */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div>
+          <Skeleton height={20} width={120} />
+          <div style={{ height: '6px' }} />
+          <Skeleton height={14} width={180} />
+        </div>
+        <Skeleton height={36} width={110} />
+      </div>
+
+      {/* Filters Skeleton */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+        <Skeleton height={32} width={260} />
+        <Skeleton height={32} width={180} />
+      </div>
+
+      {/* Grid Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '24px',
+              height: '220px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Skeleton height={18} width="60%" />
+                <Skeleton height={12} width={50} />
+              </div>
+              <div style={{ height: '12px' }} />
+              <Skeleton height={14} width="90%" />
+              <div style={{ height: '6px' }} />
+              <Skeleton height={14} width="80%" />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <Skeleton height={12} width={60} />
+                <Skeleton height={12} width={30} />
+              </div>
+              <Skeleton height={8} width="100%" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 
 type ViewMode = 'table' | 'board' | 'timeline'
 type Status = ProjectListItem['status']
@@ -165,11 +226,7 @@ export default function Projects({ onNavigate, onOpenProject }: Props) {
   }
 
   if (loading) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <LoadingState label="Loading projects" />
-      </div>
-    )
+    return <ProjectsSkeleton />
   }
 
   return (

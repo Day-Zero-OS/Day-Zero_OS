@@ -18,22 +18,14 @@ import { useAuth } from '@/app/providers/AuthProvider'
 
 import { WorkspaceSwitcher } from '@/features/workspace/components/WorkspaceSwitcher'
 
+import { useWorkspace } from '@/features/workspace/context/WorkspaceContext'
+
 interface NavItem {
   id: Screen
   label: string
   icon: React.ReactNode
   group?: string
 }
-
-const navItems: NavItem[] = [
-  { id: 'mission-control', label: 'Mission Control', icon: <Command size={15} /> },
-  { id: 'projects', label: 'Projects', icon: <FolderOpen size={15} /> },
-  { id: 'content-engine', label: 'Content Engine', icon: <Rss size={15} /> },
-  { id: 'knowledge-base', label: 'Knowledge Base', icon: <BookOpen size={15} /> },
-  { id: 'asset-vault', label: 'Asset Vault', icon: <Archive size={15} /> },
-  { id: 'weekly-debrief', label: 'Weekly Debrief', icon: <CalendarCheck size={15} /> },
-  { id: 'notifications', label: 'Notifications', icon: <Bell size={15} /> },
-]
 
 interface Props {
   current: Screen
@@ -45,7 +37,21 @@ interface Props {
 
 export default function Sidebar({ current, collapsed, onNavigate, onSearchOpen, onToggleCollapse }: Props) {
   const { user, profile, signOut } = useAuth()
+  const { currentWorkspace } = useWorkspace()
   const w = collapsed ? 56 : 220
+
+  const dynamicNavItems: NavItem[] = [
+    { id: 'mission-control' as Screen, label: 'Mission Control', icon: <Command size={15} /> },
+    { id: 'projects' as Screen, label: currentWorkspace?.sectorType === 'teaching' ? 'Courses' : currentWorkspace?.sectorType === 'student' ? 'Subjects' : 'Projects', icon: <FolderOpen size={15} /> },
+    ...(currentWorkspace?.sectorType === 'creator' || currentWorkspace?.sectorType === 'startup' || currentWorkspace?.sectorType === 'core'
+      ? [{ id: 'content-engine' as Screen, label: 'Content Engine', icon: <Rss size={15} /> }]
+      : []),
+    { id: 'knowledge-base' as Screen, label: 'Knowledge Base', icon: <BookOpen size={15} /> },
+    { id: 'asset-vault' as Screen, label: 'Asset Vault', icon: <Archive size={15} /> },
+    { id: 'weekly-debrief' as Screen, label: 'Weekly Debrief', icon: <CalendarCheck size={15} /> },
+    { id: 'notifications' as Screen, label: 'Notifications', icon: <Bell size={15} /> },
+  ]
+
 
   const initials = profile?.full_name
     ? profile.full_name
@@ -182,7 +188,7 @@ export default function Sidebar({ current, collapsed, onNavigate, onSearchOpen, 
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '8px', overflowY: 'auto' }}>
-        {navItems.map((item) => {
+        {dynamicNavItems.map((item) => {
           const active = current === item.id || (item.id === 'projects' && current === 'project-workspace')
           return (
             <button

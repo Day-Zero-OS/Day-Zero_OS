@@ -15,8 +15,105 @@ import {
 } from 'lucide-react'
 import type { Screen } from '@/types/navigation'
 import { useAuth } from '@/app/providers/AuthProvider'
-import { LoadingState } from '@/components/feedback/LoadingState'
+import { useWorkspace } from '@/features/workspace/context/WorkspaceContext'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { useFormDialog } from '@/components/ui/FormDialog'
+
+function ProjectWorkspaceSkeleton() {
+  return (
+    <div className="h-full overflow-y-auto bg-background p-4 sm:p-6 lg:p-9 animate-pulse">
+      {/* Top Header Placeholder */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Skeleton height={14} width={80} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <Skeleton height={26} width={280} />
+            <div style={{ height: '8px' }} />
+            <Skeleton height={14} width={400} />
+          </div>
+          <Skeleton height={32} width={100} />
+        </div>
+      </div>
+
+      {/* Progress Bar Placeholder */}
+      <div style={{ background: 'var(--secondary)', borderRadius: '4px', height: '4px', marginBottom: '20px' }}>
+        <div style={{ background: 'var(--border)', height: '4px', borderRadius: '4px', width: '30%' }} />
+      </div>
+
+      {/* Tabs Bar Placeholder */}
+      <div className="flex gap-4 border-b border-border pb-2 mb-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Skeleton key={i} height={16} width={80} />
+        ))}
+      </div>
+
+      {/* Two column grid content layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 flex flex-col gap-6">
+          <div
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '20px',
+            }}
+          >
+            <Skeleton height={18} width={120} />
+            <div style={{ height: '16px' }} />
+            <Skeleton height={14} width="100%" />
+            <div style={{ height: '8px' }} />
+            <Skeleton height={14} width="90%" />
+            <div style={{ height: '8px' }} />
+            <Skeleton height={14} width="80%" />
+          </div>
+          
+          <div
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '20px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <Skeleton height={18} width={100} />
+              <Skeleton height={14} width={40} />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Skeleton height={16} width={16} />
+                <Skeleton height={14} width="70%" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '20px',
+            }}
+          >
+            <Skeleton height={18} width={120} />
+            <div style={{ height: '16px' }} />
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <Skeleton height={12} width={60} />
+                <Skeleton height={12} width={80} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 import {
   createDecision,
   createBug,
@@ -28,6 +125,9 @@ import {
   createProjectAssetLink,
   createRepository,
   createTask,
+  createSprint,
+  updateSprint,
+  deleteSprint,
   deleteBug,
   deleteContent,
   deleteDebt,
@@ -55,6 +155,7 @@ import {
   type WorkspaceAsset,
   type WorkspaceKnowledge,
   type WorkspaceMilestone,
+  type WorkspaceSprint,
 } from '@/features/project-workspace/services/project-workspace.service'
 import type { Priority, ProjectStatus } from '@/types/enums'
 
@@ -101,6 +202,7 @@ const contentStageColor: Record<ProjectWorkspaceData['content'][number]['status'
 export default function ProjectWorkspace({ onNavigate }: Props) {
   const { projectId } = useParams()
   const { user } = useAuth()
+  const { currentWorkspace, switchWorkspace } = useWorkspace()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview')
   const [data, setData] = useState<ProjectWorkspaceData | null>(null)
@@ -108,6 +210,13 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { openForm, FormDialog } = useFormDialog()
+
+  const dynamicTabs = tabs.filter((tab) => {
+    if (currentWorkspace?.sectorType === 'engineering') {
+      return tab.id !== 'content' && tab.id !== 'architecture'
+    }
+    return true
+  })
 
   const loadWorkspace = useCallback(async () => {
     if (!projectId) return
@@ -139,6 +248,12 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
   useEffect(() => {
     loadWorkspace()
   }, [loadWorkspace])
+
+  useEffect(() => {
+    if (data?.project?.workspaceId && currentWorkspace?.id !== data.project.workspaceId) {
+      switchWorkspace(data.project.workspaceId)
+    }
+  }, [data?.project?.workspaceId, currentWorkspace?.id, switchWorkspace])
 
   const handleEditProject = async () => {
     if (!projectId || !data) return
@@ -355,6 +470,73 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
     if (!confirm) return
     await mutate(() => deleteMilestone(milestone.id))
   }
+
+  const handleAddSprint = async () => {
+    if (!projectId) return
+    const values = await openForm({
+      title: 'New Sprint',
+      fields: [
+        { name: 'name', label: 'Sprint Name', required: true },
+        { name: 'startDate', label: 'Start Date', type: 'date', required: true },
+        { name: 'endDate', label: 'End Date', type: 'date', required: true },
+        {
+          name: 'status',
+          label: 'Status',
+          type: 'select',
+          value: 'planning',
+          options: ['planning', 'active', 'completed'],
+        },
+      ],
+    })
+    if (!values?.name.trim() || !values.startDate || !values.endDate) return
+    await mutate(() =>
+      createSprint(projectId, {
+        name: values.name.trim(),
+        startDate: values.startDate,
+        endDate: values.endDate,
+        status: values.status as any,
+      }),
+    )
+  }
+
+  const handleEditSprint = async (sprint: WorkspaceSprint) => {
+    const values = await openForm({
+      title: 'Edit Sprint',
+      fields: [
+        { name: 'name', label: 'Sprint Name', value: sprint.name, required: true },
+        { name: 'startDate', label: 'Start Date', type: 'date', value: sprint.startDate, required: true },
+        { name: 'endDate', label: 'End Date', type: 'date', value: sprint.endDate, required: true },
+        {
+          name: 'status',
+          label: 'Status',
+          type: 'select',
+          value: sprint.status,
+          options: ['planning', 'active', 'completed'],
+        },
+      ],
+    })
+    if (!values?.name.trim() || !values.startDate || !values.endDate) return
+    await mutate(() =>
+      updateSprint(sprint.id, {
+        name: values.name.trim(),
+        startDate: values.startDate,
+        endDate: values.endDate,
+        status: values.status as any,
+      }),
+    )
+  }
+
+  const handleDeleteSprint = async (sprint: WorkspaceSprint) => {
+    const confirm = await openForm({
+      title: 'Delete Sprint',
+      description: `Are you sure you want to delete sprint "${sprint.name}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!confirm) return
+    await mutate(() => deleteSprint(sprint.id))
+  }
+
 
   const handleAddKnowledge = async () => {
     if (!projectId || !user) return
@@ -866,11 +1048,7 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
   }
 
   if (loading) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <LoadingState label="Loading project workspace" />
-      </div>
-    )
+    return <ProjectWorkspaceSkeleton />
   }
 
   if (error || !data) {
@@ -959,7 +1137,7 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
           />
         </div>
         <div className="flex gap-0 border-b border-border overflow-x-auto whitespace-nowrap scrollbar-none w-full">
-          {tabs.map((tab) => (
+          {dynamicTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -1047,23 +1225,43 @@ export default function ProjectWorkspace({ onNavigate }: Props) {
         )}
 
         {activeTab === 'planning' && (
-          <Panel
-            title="Planning"
-            action={
-              <ActionButton
-                onClick={handleAddMilestone}
-                disabled={saving}
-                icon={<Plus size={12} />}
-                label="New Milestone"
+          currentWorkspace?.sectorType === 'engineering' ? (
+            <Panel
+              title="Sprints"
+              action={
+                <ActionButton
+                  onClick={handleAddSprint}
+                  disabled={saving}
+                  icon={<Plus size={12} />}
+                  label="New Sprint"
+                />
+              }
+            >
+              <SprintList
+                sprints={data?.sprints || []}
+                onEdit={handleEditSprint}
+                onDelete={handleDeleteSprint}
               />
-            }
-          >
-            <MilestoneList
-              milestones={milestones}
-              onEdit={handleEditMilestone}
-              onDelete={handleDeleteMilestone}
-            />
-          </Panel>
+            </Panel>
+          ) : (
+            <Panel
+              title="Planning"
+              action={
+                <ActionButton
+                  onClick={handleAddMilestone}
+                  disabled={saving}
+                  icon={<Plus size={12} />}
+                  label="New Milestone"
+                />
+              }
+            >
+              <MilestoneList
+                milestones={milestones}
+                onEdit={handleEditMilestone}
+                onDelete={handleDeleteMilestone}
+              />
+            </Panel>
+          )
         )}
 
         {activeTab === 'development' && (
@@ -1539,6 +1737,50 @@ function MilestoneList({
             <span style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>
               {item.dueDate ?? '-'}
             </span>
+            <IconButton onClick={() => onEdit(item)} icon={<Pencil size={13} />} />
+            <IconButton onClick={() => onDelete(item)} icon={<Trash2 size={13} />} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SprintList({
+  sprints,
+  onEdit,
+  onDelete,
+}: {
+  sprints: ProjectWorkspaceData['sprints']
+  onEdit: (sprint: WorkspaceSprint) => void
+  onDelete: (sprint: WorkspaceSprint) => void
+}) {
+  if (!sprints || sprints.length === 0) return <EmptyLine text="No sprints planned yet." />
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {sprints.map((item) => {
+        const color =
+          item.status === 'completed'
+            ? 'var(--status-green)'
+            : item.status === 'active'
+              ? 'var(--status-blue)'
+              : 'var(--border)'
+        return (
+          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {item.status === 'completed' ? (
+              <CheckCircle2 size={14} color={color} />
+            ) : item.status === 'active' ? (
+              <Clock size={14} color={color} />
+            ) : (
+              <Circle size={14} color="var(--muted-foreground)" />
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 500 }}>{item.name}</div>
+              <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
+                {item.startDate} to {item.endDate} · <span style={{ textTransform: 'capitalize' }}>{item.status}</span>
+              </div>
+            </div>
             <IconButton onClick={() => onEdit(item)} icon={<Pencil size={13} />} />
             <IconButton onClick={() => onDelete(item)} icon={<Trash2 size={13} />} />
           </div>

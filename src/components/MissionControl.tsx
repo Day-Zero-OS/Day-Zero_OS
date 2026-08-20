@@ -18,7 +18,69 @@ import {
   fetchDashboardData,
   type DashboardData,
 } from '@/features/mission-control/services/mission-control.service'
-import { LoadingState } from '@/components/feedback/LoadingState'
+import { Skeleton } from '@/components/ui/Skeleton'
+
+function MissionControlSkeleton() {
+  return (
+    <div className="h-full overflow-y-auto bg-background p-4 sm:p-6 lg:p-9 animate-pulse">
+      {/* Header Skeleton */}
+      <div style={{ marginBottom: '32px' }}>
+        <Skeleton height={14} width={150} />
+        <div style={{ height: '8px' }} />
+        <Skeleton height={28} width={280} />
+        <div style={{ height: '8px' }} />
+        <Skeleton height={16} width={360} />
+      </div>
+
+      {/* Today's Mission Skeleton */}
+      <div
+        style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          padding: '20px 24px',
+          marginBottom: '24px',
+          borderLeft: '3px solid var(--border)',
+        }}
+      >
+        <Skeleton height={12} width={120} />
+        <div style={{ height: '12px' }} />
+        <Skeleton height={16} width="60%" />
+        <div style={{ height: '8px' }} />
+        <Skeleton height={14} width="40%" />
+      </div>
+
+      {/* Cards Grid Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '20px',
+              height: '180px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <Skeleton height={12} width={80} />
+              <div style={{ height: '16px' }} />
+              <Skeleton height={18} width="90%" />
+              <div style={{ height: '8px' }} />
+              <Skeleton height={14} width="70%" />
+            </div>
+            <Skeleton height={12} width={100} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 
 const statusDot = (color: string) => (
   <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -36,19 +98,17 @@ export default function MissionControl({ onNavigate }: Props) {
 
   useEffect(() => {
     let active = true
+    setLoading(true)
     async function loadData() {
       if (!workspaceId) return
       try {
         const dashboard = await fetchDashboardData(workspaceId)
         if (active) {
           setData(dashboard)
+          setLoading(false)
         }
       } catch (err) {
         console.error('Failed to load dashboard data:', err)
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
       }
     }
     loadData()
@@ -58,19 +118,7 @@ export default function MissionControl({ onNavigate }: Props) {
   }, [workspaceId])
 
   if (loading) {
-    return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--background)',
-        }}
-      >
-        <LoadingState />
-      </div>
-    )
+    return <MissionControlSkeleton />
   }
 
   const name = profile?.full_name || user?.email?.split('@')[0] || 'Alex'
