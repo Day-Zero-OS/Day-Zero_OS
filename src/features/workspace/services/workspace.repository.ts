@@ -48,7 +48,7 @@ export interface WorkspaceRepository {
   }): Promise<void>
   updateWorkspaceInvitationStatus(invitationId: string, status: string): Promise<void>
   updateWorkspace(workspaceId: string, updates: Partial<Workspace>): Promise<void>
-  createWorkspace(ownerId: string, name: string, slug: string): Promise<Workspace>
+  createWorkspace(ownerId: string, name: string, slug: string, sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'): Promise<Workspace>
   joinWorkspaceByCode(code: string, userId: string): Promise<string>
   getUserProfile(userId: string): Promise<UserProfile | null>
   updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<void>

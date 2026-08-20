@@ -21,9 +21,11 @@ export type Workspace = {
   joinCode: string
   defaultJoinRole: 'editor' | 'viewer'
   metadata: Record<string, unknown>
+  sectorType: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'
   createdAt: string
   updatedAt: string
 }
+
 
 export type WorkspaceMember = {
   id: string
@@ -272,12 +274,16 @@ export async function setCurrentWorkspace(userId: string, workspaceId: string): 
   }
 }
 
-export async function createWorkspace(userId: string, name: string): Promise<Workspace> {
+export async function createWorkspace(
+  userId: string,
+  name: string,
+  sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'
+): Promise<Workspace> {
   const repository = getRepository()
   const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'workspace'
   const slug = `${slugBase}-${Math.random().toString(36).substring(2, 6)}`
 
-  const ws = await repository.createWorkspace(userId, name, slug)
+  const ws = await repository.createWorkspace(userId, name, slug, sectorType)
 
   // Explicitly add Owner as active member
   await repository.insertWorkspaceMember({

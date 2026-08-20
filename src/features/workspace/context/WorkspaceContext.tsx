@@ -58,7 +58,7 @@ type WorkspaceContextValue = {
   isLoading: boolean
   error: Error | null
   switchWorkspace: (workspaceId: string) => Promise<void>
-  createWorkspace: (name: string) => Promise<Workspace>
+  createWorkspace: (name: string, sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer') => Promise<Workspace>
   inviteMember: (email: string, role?: 'admin' | 'editor' | 'viewer') => Promise<void>
   revokeInvitation: (invitationId: string) => Promise<void>
   transferOwnership: (newOwnerId: string) => Promise<void>
@@ -224,11 +224,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   )
 
   const createWorkspaceHandler = useCallback(
-    async (name: string): Promise<Workspace> => {
+    async (name: string, sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'): Promise<Workspace> => {
       if (!user) throw new Error('User must be logged in to create a workspace.')
       setIsLoading(true)
       try {
-        const newWs = await createWorkspaceService(user.id, name)
+        const newWs = await createWorkspaceService(user.id, name, sectorType)
         await refreshWorkspaceData(newWs.id, true)
         return newWs
       } finally {

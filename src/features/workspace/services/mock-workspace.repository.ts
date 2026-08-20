@@ -20,6 +20,7 @@ export class MockWorkspaceRepository implements WorkspaceRepository {
       joinCode: ws.join_code ?? '',
       defaultJoinRole: (ws.default_join_role as 'editor' | 'viewer') ?? 'editor',
       metadata: ws.metadata ?? {},
+      sectorType: ws.sector_type ?? 'core',
       createdAt: ws.created_at,
       updatedAt: ws.updated_at,
     }
@@ -47,6 +48,7 @@ export class MockWorkspaceRepository implements WorkspaceRepository {
           joinCode: ws.join_code ?? '',
           defaultJoinRole: (ws.default_join_role as 'editor' | 'viewer') ?? 'editor',
           metadata: ws.metadata ?? {},
+          sectorType: ws.sector_type ?? 'core',
           createdAt: ws.created_at,
           updatedAt: ws.updated_at,
         })
@@ -212,7 +214,7 @@ export class MockWorkspaceRepository implements WorkspaceRepository {
     }
   }
 
-  async createWorkspace(ownerId: string, name: string, slug: string): Promise<Workspace> {
+  async createWorkspace(ownerId: string, name: string, slug: string, sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'): Promise<Workspace> {
     const db = getStoredData()
     const wsId = crypto.randomUUID()
     const joinCode = generateMockJoinCode()
@@ -226,6 +228,7 @@ export class MockWorkspaceRepository implements WorkspaceRepository {
       join_code: joinCode,
       default_join_role: 'editor',
       metadata: {},
+      sector_type: sectorType ?? 'core',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -245,6 +248,7 @@ export class MockWorkspaceRepository implements WorkspaceRepository {
       joinCode,
       defaultJoinRole: 'editor',
       metadata: {},
+      sectorType: newWs.sector_type ?? 'core',
       createdAt: newWs.created_at,
       updatedAt: newWs.updated_at,
     }

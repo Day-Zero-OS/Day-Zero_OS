@@ -27,6 +27,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
       joinCode: data.join_code ?? '',
       defaultJoinRole: (data.default_join_role as 'editor' | 'viewer') ?? 'editor',
       metadata: data.metadata ?? {},
+      sectorType: data.sector_type ?? 'core',
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     }
@@ -56,6 +57,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
         joinCode: ws.join_code ?? '',
         defaultJoinRole: (ws.default_join_role as 'editor' | 'viewer') ?? 'editor',
         metadata: ws.metadata ?? {},
+        sectorType: ws.sector_type ?? 'core',
         createdAt: ws.created_at,
         updatedAt: ws.updated_at,
       }))
@@ -236,7 +238,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     if (error) throw error
   }
 
-  async createWorkspace(ownerId: string, name: string, slug: string): Promise<Workspace> {
+  async createWorkspace(ownerId: string, name: string, slug: string, sectorType?: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'): Promise<Workspace> {
     const supabase = getSupabaseClient()
     const { data: ws, error: wsError } = await supabase
       .from('workspaces')
@@ -245,6 +247,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
         name,
         slug,
         is_personal: false,
+        sector_type: sectorType ?? 'core',
       })
       .select()
       .single()
@@ -262,6 +265,7 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
       joinCode: ws.join_code ?? '',
       defaultJoinRole: (ws.default_join_role as 'editor' | 'viewer') ?? 'editor',
       metadata: ws.metadata ?? {},
+      sectorType: ws.sector_type ?? 'core',
       createdAt: ws.created_at,
       updatedAt: ws.updated_at,
     }

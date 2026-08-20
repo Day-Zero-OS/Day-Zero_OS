@@ -35,6 +35,7 @@ export function WorkspaceSwitcher({ variant = 'sidebar' }: SwitcherProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showJoinModal, setShowJoinModal] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [selectedSectorType, setSelectedSectorType] = useState<'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'>('core')
   const [joinCode, setJoinCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -84,8 +85,9 @@ export function WorkspaceSwitcher({ variant = 'sidebar' }: SwitcherProps) {
     setIsSubmitting(true)
     setErrorMsg('')
     try {
-      await createWorkspace(newWorkspaceName.trim())
+      await createWorkspace(newWorkspaceName.trim(), selectedSectorType)
       setNewWorkspaceName('')
+      setSelectedSectorType('core')
       setShowCreateModal(false)
       setIsOpen(false)
     } catch (err: any) {
@@ -220,6 +222,8 @@ export function WorkspaceSwitcher({ variant = 'sidebar' }: SwitcherProps) {
             onSubmit={handleCreateSubmit}
             value={newWorkspaceName}
             onChange={setNewWorkspaceName}
+            sectorType={selectedSectorType}
+            onChangeSectorType={setSelectedSectorType}
             isSubmitting={isSubmitting}
             errorMsg={errorMsg}
           />,
@@ -438,6 +442,8 @@ export function WorkspaceSwitcher({ variant = 'sidebar' }: SwitcherProps) {
           onSubmit={handleCreateSubmit}
           value={newWorkspaceName}
           onChange={setNewWorkspaceName}
+          sectorType={selectedSectorType}
+          onChangeSectorType={setSelectedSectorType}
           isSubmitting={isSubmitting}
           errorMsg={errorMsg}
         />,
@@ -468,6 +474,8 @@ export function CreateWorkspaceDialog({
   onSubmit,
   value,
   onChange,
+  sectorType,
+  onChangeSectorType,
   isSubmitting,
   errorMsg,
 }: {
@@ -476,6 +484,8 @@ export function CreateWorkspaceDialog({
   onSubmit: (e: React.FormEvent) => void
   value: string
   onChange: (val: string) => void
+  sectorType: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer'
+  onChangeSectorType: (val: 'core' | 'engineering' | 'teaching' | 'student' | 'startup' | 'creator' | 'freelancer') => void
   isSubmitting: boolean
   errorMsg: string
 }) {
@@ -509,6 +519,30 @@ export function CreateWorkspaceDialog({
               placeholder="e.g. Acme Engineering"
               className="w-full px-3.5 py-3 rounded-xl bg-[#0D1427] border border-white/[.08] text-white placeholder-[#707B95] text-xs focus:outline-none focus:border-[#6C5CFF] transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[#A9B1C7] mb-1.5">
+              Workspace Sector Type
+            </label>
+            <div className="relative">
+              <select
+                value={sectorType}
+                onChange={(e) => onChangeSectorType(e.target.value as any)}
+                className="w-full px-3.5 py-3 rounded-xl bg-[#0D1427] border border-white/[.08] text-white text-xs focus:outline-none focus:border-[#6C5CFF] transition-colors cursor-pointer appearance-none pr-10"
+              >
+                <option value="core">Core Digital Workspace</option>
+                <option value="engineering">Engineering OS (Projects, Sprints, Bugs)</option>
+                <option value="teaching">Teaching OS (Courses, Grades, Attendance)</option>
+                <option value="student">Student OS (Subjects, GPA, Study Sessions)</option>
+                <option value="startup">Startup OS (Build, Pitch, Run)</option>
+                <option value="creator">Creator OS (Publishing, Workflows)</option>
+                <option value="freelancer">Freelancer OS (Clients, Tasks)</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#707B95]">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
           </div>
 
           {errorMsg && (
