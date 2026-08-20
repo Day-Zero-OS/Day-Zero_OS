@@ -1,11 +1,11 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { AppError } from '@/lib/errors/AppError'
 import type {
   Subject,
   StudySession,
   AcademicRecord,
   StudentAssignment,
   StudentExam,
-  AttendanceRecord,
   StudentGoal,
   GroupProject,
 } from '@/types/student'
@@ -55,7 +55,34 @@ const INITIAL_GROUPS: GroupProject[] = [
   { id: 'grp-2', workspace_id: 'ws-1', name: 'OS Lab Project', type: 'Lab Project', members_count: 3, progress: 40, status: 'Active', due_date: 'Sep 10, 2026', member_avatars: ['N', 'P'] },
 ]
 
+// ─── Attendance Safety Calculation Helper ────────────────────────────────────
+
+/**
+ * Calculates attendance percentage safely.
+ * Returns `null` when there are zero past class events, representing "No classes recorded".
+ */
+export function calculateAttendancePercentage(classEvents: { start_time?: string; status?: string; metadata?: any }[]): number | null {
+  const now = new Date()
+  const pastClasses = classEvents.filter((ev) => {
+    if (ev.status === 'cancelled') return false
+    if (!ev.start_time) return false
+    return new Date(ev.start_time) <= now
+  })
+
+  if (pastClasses.length === 0) {
+    return null
+  }
+
+  const attendedClasses = pastClasses.filter(
+    (ev) => ev.status === 'completed' || ev.metadata?.attendance_status === 'present'
+  )
+
+  return Math.round((attendedClasses.length / pastClasses.length) * 100)
+}
+
 // ─── Student Service Functions ────────────────────────────────────────────────
+
+// 1. SUBJECTS
 
 export async function fetchSubjects(workspaceId: string): Promise<Subject[]> {
   try {
@@ -91,6 +118,223 @@ export async function fetchSubjects(workspaceId: string): Promise<Subject[]> {
     return INITIAL_SUBJECTS
   }
 }
+
+export async function createSubject(
+  workspaceId: string,
+  subject: { name: string; code: string; instructor_name?: string; credits?: number; syllabus_url?: string }
+): Promise<Subject> {
+  const supabase = getSupabaseClient()
+
+  // Step A: Create base work_contexts record
+  const { data: ctxData, error: ctxError } = await supabase
+    .from('work_contexts')
+    .insert({
+      workspace_id: workspaceId,
+      name: subject.name,
+      context_type: 'subject',
+    })
+    .select()
+    .single()
+
+  if (ctxError || !ctxData) {
+    throw new AppError('SUBJECT_CREATE_FAILED', ctxError?.message || 'Failed to create work context for subject')
+  }
+
+  // Step B: Create 1:1 sector extension in subjects table
+  const { data: subData, error: subError } = await supabase
+    .from('subjects')
+    .insert({
+      work_context_id: ctxData.id,
+      workspace_id: workspaceId,
+      code: subject.code,
+      instructor_name: subject.instructor_name,
+      credits: subject.credits ?? 3.0,
+      syllabus_url: subject.syllabus_url,
+    })
+    .select()
+    .single()
+
+  if (subError || !subData) {
+    throw new AppError('SUBJECT_CREATE_FAILED', subError?.message || 'Failed to create subject extension record')
+  }
+
+  return {
+    work_context_id: subData.work_context_id,
+    workspace_id: subData.workspace_id,
+    name: ctxData.name,
+    code: subData.code,
+    instructor_name: subData.instructor_name,
+    credits: Number(subData.credits),
+    syllabus_url: subData.syllabus_url,
+    progress: 0,
+    attendance: null,
+    assignments_count: 0,
+    exams_count: 0,
+    created_at: subData.created_at,
+    updated_at: subData.updated_at,
+  }
+}
+
+export async function updateSubject(
+  workContextId: string,
+  updates: { name?: string; code?: string; instructor_name?: string; credits?: number; syllabus_url?: string }
+): Promise<void> {
+  const supabase = getSupabaseClient()
+
+  if (updates.name) {
+    const { error: ctxErr } = await supabase
+      .from('work_contexts')
+      .update({ name: updates.name })
+      .eq('id', workContextId)
+
+    if (ctxErr) throw new AppError('SUBJECT_UPDATE_FAILED', ctxErr.message)
+  }
+
+  const { error: subErr } = await supabase
+    .from('subjects')
+    .update({
+      code: updates.code,
+      instructor_name: updates.instructor_name,
+      credits: updates.credits,
+      syllabus_url: updates.syllabus_url,
+    })
+    .eq('work_context_id', workContextId)
+
+  if (subErr) throw new AppError('SUBJECT_UPDATE_FAILED', subErr.message)
+}
+
+export async function archiveSubject(workContextId: string): Promise<void> {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase
+    .from('work_contexts')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', workContextId)
+
+  if (error) throw new AppError('SUBJECT_ARCHIVE_FAILED', error.message)
+}
+
+// 2. STUDY SESSIONS
+
+export async function fetchStudySessions(workspaceId: string): Promise<StudySession[]> {
+  try {
+    const supabase = getSupabaseClient()
+    const { data, error } = await supabase
+      .from('study_sessions')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+
+    if (error || !data || data.length === 0) {
+      return INITIAL_SESSIONS
+    }
+
+    return data as StudySession[]
+  } catch {
+    return INITIAL_SESSIONS
+  }
+}
+
+export async function createStudySession(
+  workspaceId: string,
+  workContextId: string,
+  session: { title: string; topic?: string; duration_minutes: number; start_time?: string }
+): Promise<StudySession> {
+  const supabase = getSupabaseClient()
+
+  const { data, error } = await supabase
+    .from('study_sessions')
+    .insert({
+      workspace_id: workspaceId,
+      work_context_id: workContextId,
+      title: session.title,
+      topic: session.topic,
+      duration_minutes: session.duration_minutes,
+      start_time: session.start_time,
+      status: 'scheduled',
+    })
+    .select()
+    .single()
+
+  if (error || !data) {
+    throw new AppError('STUDY_SESSION_CREATE_FAILED', error?.message || 'Failed to create study session')
+  }
+
+  return data as StudySession
+}
+
+export async function updateStudySession(
+  sessionId: string,
+  updates: Partial<StudySession>
+): Promise<void> {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase
+    .from('study_sessions')
+    .update(updates)
+    .eq('id', sessionId)
+
+  if (error) throw new AppError('STUDY_SESSION_UPDATE_FAILED', error.message)
+}
+
+export async function updateSessionStatus(
+  sessionId: string,
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+): Promise<void> {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase
+    .from('study_sessions')
+    .update({ status })
+    .eq('id', sessionId)
+
+  if (error) throw new AppError('STUDY_SESSION_STATUS_FAILED', error.message)
+}
+
+// 3. ACADEMIC RECORDS
+
+export async function fetchAcademicRecord(workspaceId: string, userId: string): Promise<AcademicRecord | null> {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('academic_records')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    throw new AppError('ACADEMIC_RECORD_FETCH_FAILED', error.message)
+  }
+
+  return data as AcademicRecord | null
+}
+
+export async function upsertAcademicRecord(
+  workspaceId: string,
+  userId: string,
+  record: { cumulative_gpa?: number; target_gpa?: number; current_semester?: number; total_credits?: number }
+): Promise<AcademicRecord> {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('academic_records')
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        user_id: userId,
+        cumulative_gpa: record.cumulative_gpa,
+        target_gpa: record.target_gpa,
+        current_semester: record.current_semester,
+        total_credits: record.total_credits,
+      },
+      { onConflict: 'workspace_id,user_id' }
+    )
+    .select()
+    .single()
+
+  if (error || !data) {
+    throw new AppError('ACADEMIC_RECORD_UPSERT_FAILED', error?.message || 'Failed to upsert academic record')
+  }
+
+  return data as AcademicRecord
+}
+
+// 4. ASSIGNMENTS, EXAMS, GOALS, GROUPS
 
 export async function fetchAssignments(workspaceId: string): Promise<StudentAssignment[]> {
   try {
@@ -151,24 +395,6 @@ export async function fetchExams(workspaceId: string): Promise<StudentExam[]> {
     }))
   } catch {
     return INITIAL_EXAMS
-  }
-}
-
-export async function fetchStudySessions(workspaceId: string): Promise<StudySession[]> {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from('study_sessions')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-
-    if (error || !data || data.length === 0) {
-      return INITIAL_SESSIONS
-    }
-
-    return data as StudySession[]
-  } catch {
-    return INITIAL_SESSIONS
   }
 }
 

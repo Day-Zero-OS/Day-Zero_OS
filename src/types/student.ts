@@ -8,7 +8,7 @@ export interface Subject {
   credits: number
   syllabus_url?: string
   progress: number
-  attendance: number
+  attendance: number | null
   assignments_count: number
   exams_count: number
   archived_at?: string | null

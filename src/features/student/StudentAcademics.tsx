@@ -107,7 +107,9 @@ export default function StudentAcademics({ onNavigate, workspaceId = 'ws-1', ini
                   </div>
                   <div className="flex justify-between pt-1">
                     <span className="text-muted-foreground">Attendance</span>
-                    <span className="font-semibold text-emerald-600">{sub.attendance}%</span>
+                    <span className="font-semibold text-emerald-600">
+                      {sub.attendance !== null ? `${sub.attendance}%` : '—'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Pending Work</span>
@@ -220,8 +222,12 @@ export default function StudentAcademics({ onNavigate, workspaceId = 'ws-1', ini
                   <p className="text-xs text-muted-foreground">{sub.code}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xl font-bold text-emerald-600">{sub.attendance}%</span>
-                  <p className="text-[10px] text-muted-foreground">Overall Attendance</p>
+                  <span className="text-xl font-bold text-emerald-600">
+                    {sub.attendance !== null ? `${sub.attendance}%` : '—'}
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">
+                    {sub.attendance !== null ? 'Overall Attendance' : 'No classes recorded'}
+                  </p>
                 </div>
               </div>
             ))}
