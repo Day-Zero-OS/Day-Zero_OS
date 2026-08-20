@@ -8,12 +8,15 @@ import { OfflineFallback } from '@/components/feedback/OfflineFallback'
 import { getScreenFromPath, screenPaths, type Screen } from '@/types/navigation'
 import { isDemoModeEnabled, setDemoModeEnabled } from '@/lib/supabase/mockClient'
 import { useNetworkStatus } from '@/lib/platform/device'
+import { useWorkspace } from '@/features/workspace/context/WorkspaceContext'
+import { AlertCircle } from 'lucide-react'
 
 export function WorkspaceLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const { isOffline } = useNetworkStatus()
   const [isDemoMode, setIsDemoMode] = useState(isDemoModeEnabled())
+  const { isLoading: workspaceLoading, error: workspaceError } = useWorkspace()
   const navigate = useNavigate()
   const location = useLocation()
   const current = getScreenFromPath(location.pathname)
@@ -37,6 +40,52 @@ export function WorkspaceLayout() {
 
   if (isOffline) {
     return <OfflineFallback />
+  }
+
+  if (workspaceLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground">Loading workspace...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (workspaceError) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          padding: '32px',
+          maxWidth: '400px',
+          textAlign: 'center',
+        }}>
+          <AlertCircle size={32} style={{ color: 'var(--status-red)', margin: '0 auto 16px' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 8px' }}>Workspace Error</h3>
+          <p style={{ fontSize: '14px', color: 'var(--muted-foreground)', margin: '0 0 20px' }}>
+            {workspaceError.message || 'Failed to initialize workspace'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: 'var(--foreground)',
+              color: 'var(--background)',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

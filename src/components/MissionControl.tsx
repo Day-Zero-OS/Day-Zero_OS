@@ -95,20 +95,32 @@ export default function MissionControl({ onNavigate }: Props) {
   const { workspaceId } = useWorkspace()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
+    if (!workspaceId) {
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
+    setError(null)
     async function loadData() {
-      if (!workspaceId) return
       try {
-        const dashboard = await fetchDashboardData(workspaceId)
+        const dashboard = await fetchDashboardData(workspaceId ?? undefined)
         if (active) {
           setData(dashboard)
-          setLoading(false)
         }
       } catch (err) {
         console.error('Failed to load dashboard data:', err)
+        if (active) {
+          setError(err instanceof Error ? err.message : 'Failed to load dashboard data.')
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
       }
     }
     loadData()
@@ -119,6 +131,53 @@ export default function MissionControl({ onNavigate }: Props) {
 
   if (loading) {
     return <MissionControlSkeleton />
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-background p-6">
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          padding: '32px',
+          maxWidth: '400px',
+          textAlign: 'center',
+        }}>
+          <AlertCircle size={32} style={{ color: 'var(--status-red)', margin: '0 auto 16px' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 8px' }}>Failed to load Dashboard</h3>
+          <p style={{ fontSize: '14px', color: 'var(--muted-foreground)', margin: '0 0 20px' }}>
+            {error}
+          </p>
+          <button
+            onClick={() => {
+              setError(null)
+              setLoading(true)
+              fetchDashboardData(workspaceId ?? undefined)
+                .then((dashboard) => {
+                  setData(dashboard)
+                  setLoading(false)
+                })
+                .catch((err) => {
+                  setError(err instanceof Error ? err.message : 'Failed to load dashboard data.')
+                  setLoading(false)
+                })
+            }}
+            style={{
+              background: 'var(--foreground)',
+              color: 'var(--background)',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const name = profile?.full_name || user?.email?.split('@')[0] || 'Alex'
