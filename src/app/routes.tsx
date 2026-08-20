@@ -30,6 +30,16 @@ const WeeklyDebrief = lazy(() => import('@/components/WeeklyDebrief'))
 const Notifications = lazy(() => import('@/components/Notifications'))
 const Settings = lazy(() => import('@/components/Settings'))
 
+// Student OS V2 Sector Views
+const StudentMissionControl = lazy(() => import('@/features/student/StudentMissionControl'))
+const StudentAcademics = lazy(() => import('@/features/student/StudentAcademics'))
+const StudentPlanner = lazy(() => import('@/features/student/StudentPlanner'))
+const StudentResources = lazy(() => import('@/features/student/StudentResources'))
+const StudentGoals = lazy(() => import('@/features/student/StudentGoals'))
+const StudentGroupWork = lazy(() => import('@/features/student/StudentGroupWork'))
+const StudentGroupDetail = lazy(() => import('@/features/student/StudentGroupDetail'))
+const StudentSettings = lazy(() => import('@/features/student/StudentSettings'))
+
 function RouteLoader() {
   return (
     <div
@@ -92,7 +102,7 @@ function LoginRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={screenPaths['mission-control']} replace />
+    return <Navigate to={screenPaths['student-mission']} replace />
   }
 
   return <Login />
@@ -126,6 +136,8 @@ function ProjectWorkspaceRoute() {
 }
 
 export function AppRoutes() {
+  const navigate = useRouteNavigation()
+
   return (
     <Suspense fallback={<RouteLoader />}>
       <Routes>
@@ -144,7 +156,6 @@ export function AppRoutes() {
           <Route path="/download/ios" element={<DownloadIos />} />
         </Route>
 
-
         <Route
           element={
             <ProtectedRoute>
@@ -152,7 +163,7 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to={screenPaths['mission-control']} replace />} />
+          <Route index element={<Navigate to={screenPaths['student-mission']} replace />} />
           <Route path="/mission-control" element={<MissionControlRoute />} />
           <Route path="/projects" element={<ProjectsRoute />} />
           <Route path="/projects/:projectId" element={<ProjectWorkspaceRoute />} />
@@ -162,9 +173,28 @@ export function AppRoutes() {
           <Route path="/weekly-debrief" element={<WeeklyDebrief />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
+
+          {/* Student OS V2 Routes */}
+          <Route path="/student/mission" element={<StudentMissionControl onNavigate={navigate} />} />
+          <Route path="/student/academics" element={<StudentAcademics onNavigate={navigate} initialTab="subjects" />} />
+          <Route path="/student/academics/subjects" element={<StudentAcademics onNavigate={navigate} initialTab="subjects" />} />
+          <Route path="/student/academics/assignments" element={<StudentAcademics onNavigate={navigate} initialTab="assignments" />} />
+          <Route path="/student/academics/exams" element={<StudentAcademics onNavigate={navigate} initialTab="exams" />} />
+          <Route path="/student/academics/attendance" element={<StudentAcademics onNavigate={navigate} initialTab="attendance" />} />
+          <Route path="/student/planner" element={<StudentPlanner onNavigate={navigate} initialTab="study-plan" />} />
+          <Route path="/student/planner/study-plan" element={<StudentPlanner onNavigate={navigate} initialTab="study-plan" />} />
+          <Route path="/student/planner/calendar" element={<StudentPlanner onNavigate={navigate} initialTab="calendar" />} />
+          <Route path="/student/resources" element={<StudentResources onNavigate={navigate} initialTab="notes" />} />
+          <Route path="/student/resources/notes" element={<StudentResources onNavigate={navigate} initialTab="notes" />} />
+          <Route path="/student/resources/files" element={<StudentResources onNavigate={navigate} initialTab="files" />} />
+          <Route path="/student/goals" element={<StudentGoals onNavigate={navigate} />} />
+          <Route path="/student/group-work" element={<StudentGroupWork onNavigate={navigate} />} />
+          <Route path="/student/group-work/:groupId" element={<StudentGroupDetail onNavigate={navigate} />} />
+          <Route path="/student/notifications" element={<Notifications />} />
+          <Route path="/student/settings" element={<StudentSettings />} />
         </Route>
 
-        <Route path="*" element={<Navigate to={screenPaths['mission-control']} replace />} />
+        <Route path="*" element={<Navigate to={screenPaths['student-mission']} replace />} />
       </Routes>
     </Suspense>
   )
