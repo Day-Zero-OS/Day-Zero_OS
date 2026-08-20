@@ -161,10 +161,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err: any) {
-        console.error('Error in refreshWorkspaceData:', err)
-        setError(err instanceof Error ? err : new Error(String(err)))
+        let formattedMessage = '';
+        if (err && typeof err === 'object') {
+          formattedMessage = [
+            err.message,
+            err.details,
+            err.hint,
+            err.code ? `Code: ${err.code}` : undefined
+          ].filter(Boolean).join(' — ');
+        } else {
+          formattedMessage = String(err);
+        }
+        console.error('[WORKSPACE ERROR DETAILED]:', formattedMessage);
+        setError(new Error(formattedMessage));
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     },
     [user, isAuthenticated],
