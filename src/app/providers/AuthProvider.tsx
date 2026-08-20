@@ -69,10 +69,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', userId)
           .single()
 
-        if (profErr && profErr.code !== 'PGRST116') {
+        let currentProfile = prof
+        if (!currentProfile && (profErr?.code === 'PGRST116' || !profErr)) {
+          const { data: userAuth } = await supabase.auth.getUser()
+          const authUser = userAuth?.user
+          
+          const fullName = authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'New User'
+          const username = authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || `user_${userId.slice(0, 8)}`
+          
+          const { data: newProf, error: createProfErr } = await supabase
+            .from('profiles')
+            .upsert({
+              id: userId,
+              full_name: fullName,
+              username: username,
+              email: authUser?.email || null,
+            })
+            .select()
+            .single()
+
+          if (createProfErr) {
+            console.error('Failed to auto-create profile:', createProfErr)
+          } else {
+            currentProfile = newProf
+          }
+        }
+
+        if (currentProfile) {
+          setProfile(currentProfile as Profile)
+        } else if (profErr && profErr.code !== 'PGRST116') {
           console.error('Error fetching profile:', profErr)
-        } else if (prof) {
-          setProfile(prof as Profile)
         }
 
         // Fetch settings
@@ -82,10 +108,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('user_id', userId)
           .single()
 
-        if (settsErr && settsErr.code !== 'PGRST116') {
+        let currentSettings = setts
+        if (!currentSettings && (settsErr?.code === 'PGRST116' || !settsErr)) {
+          const { data: newSettings, error: createSettingsErr } = await supabase
+            .from('user_settings')
+            .upsert({
+              user_id: userId,
+            })
+            .select()
+            .single()
+
+          if (createSettingsErr) {
+            console.error('Failed to auto-create settings:', createSettingsErr)
+          } else {
+            currentSettings = newSettings
+          }
+        }
+
+        if (currentSettings) {
+          setUserSettings(currentSettings as UserSettings)
+        } else if (settsErr && settsErr.code !== 'PGRST116') {
           console.error('Error fetching settings:', settsErr)
-        } else if (setts) {
-          setUserSettings(setts as UserSettings)
         }
       } catch (e) {
         console.error('Exception in fetchProfileAndSettings:', e)
