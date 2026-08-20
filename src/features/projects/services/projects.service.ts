@@ -14,43 +14,6 @@ export type ProjectListItem = {
   createdAt: string
 }
 
-type ProjectRow = {
-  id: string
-  name: string
-  description: string | null
-  status: ProjectStatus
-  progress: number
-  deadline: string | null
-  technologies: string[] | null
-  priority: Priority
-  created_at: string
-}
-
-function formatDeadline(deadline: string | null) {
-  if (!deadline) return 'No deadline'
-
-  return new Date(`${deadline}T00:00:00Z`).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
-
-function mapProject(row: ProjectRow): ProjectListItem {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? 'No description',
-    status: row.status,
-    progress: row.progress,
-    deadline: formatDeadline(row.deadline),
-    technologies: row.technologies ?? [],
-    priority: row.priority,
-    createdAt: row.created_at,
-  }
-}
-
 export async function listProjects(
   includeArchivedOrWorkspaceId?: boolean | string,
   includeArchivedParam = false,
@@ -67,9 +30,21 @@ export async function listProjects(
 
   const supabase = getSupabaseClient()
 
+  // Fetch from work_contexts with joined engineering_projects
   let query = supabase
-    .from('projects')
-    .select('id, name, description, status, progress, deadline, technologies, priority, created_at')
+    .from('work_contexts')
+    .select(`
+      id, 
+      name, 
+      description, 
+      status, 
+      progress, 
+      created_at, 
+      engineering_projects (
+        repository_url, 
+        tech_stack
+      )
+    `)
     .eq('workspace_id', targetWorkspaceId)
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
@@ -78,7 +53,23 @@ export async function listProjects(
   const { data, error } = await query
   if (error) throw error
 
-  return ((data ?? []) as ProjectRow[]).map(mapProject)
+  return (data ?? []).map((row: any) => {
+    const engProj = Array.isArray(row.engineering_projects) 
+      ? row.engineering_projects[0] 
+      : row.engineering_projects
+
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description ?? 'No description',
+      status: row.status as ProjectStatus,
+      progress: row.progress,
+      deadline: 'No deadline',
+      technologies: engProj?.tech_stack ?? [],
+      priority: 'medium',
+      createdAt: row.created_at,
+    }
+  })
 }
 
 export async function createProject(input: {
@@ -90,38 +81,70 @@ export async function createProject(input: {
   const targetWorkspaceId = requireWorkspaceId(input.workspaceId)
   const supabase = getSupabaseClient()
 
-  const { data, error } = await supabase
-    .from('projects')
+  // 1. Insert into Core work_contexts
+  const { data: wc, error: wcError } = await supabase
+    .from('work_contexts')
     .insert({
       owner_id: input.ownerId,
       workspace_id: targetWorkspaceId,
       name: input.name,
       description: input.description ?? null,
       status: 'active',
-      priority: 'medium',
       progress: 0,
     })
-    .select('id, name, description, status, progress, deadline, technologies, priority, created_at')
+    .select()
     .single()
 
-  if (error) throw error
+  if (wcError) throw wcError
 
+  // 2. Fetch workspace to check sector type
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('sector_type')
+    .eq('id', targetWorkspaceId)
+    .single()
+
+  // 3. If sector is engineering, insert engineering_projects 1:1 row
+  if (ws?.sector_type === 'engineering') {
+    const { error: engError } = await supabase
+      .from('engineering_projects')
+      .insert({
+        work_context_id: wc.id,
+        workspace_id: targetWorkspaceId,
+        tech_stack: [],
+      })
+    if (engError) {
+      console.error('Failed to create engineering project sector mapping:', engError)
+    }
+  }
+
+  // 4. Activity Log
   await supabase.from('activity_log').insert({
     workspace_id: targetWorkspaceId,
-    project_id: data.id,
+    project_id: wc.id,
     user_id: input.ownerId,
-    action: `Created project "${data.name}"`,
+    action: `Created project "${wc.name}"`,
     entity_type: 'project',
-    entity_id: data.id,
+    entity_id: wc.id,
   })
 
-  return mapProject(data as ProjectRow)
+  return {
+    id: wc.id,
+    name: wc.name,
+    description: wc.description ?? 'No description',
+    status: wc.status as ProjectStatus,
+    progress: wc.progress,
+    deadline: 'No deadline',
+    technologies: [],
+    priority: 'medium',
+    createdAt: wc.created_at,
+  }
 }
 
 export async function archiveProject(id: string): Promise<void> {
   const supabase = getSupabaseClient()
   const { error } = await supabase
-    .from('projects')
+    .from('work_contexts')
     .update({ status: 'archived', archived_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
@@ -130,7 +153,7 @@ export async function archiveProject(id: string): Promise<void> {
 export async function restoreProject(id: string): Promise<void> {
   const supabase = getSupabaseClient()
   const { error } = await supabase
-    .from('projects')
+    .from('work_contexts')
     .update({ status: 'active', archived_at: null })
     .eq('id', id)
   if (error) throw error
@@ -148,3 +171,4 @@ export async function duplicateProject(
     description: source.description,
   })
 }
+

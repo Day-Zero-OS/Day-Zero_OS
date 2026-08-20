@@ -26,9 +26,9 @@ export async function searchWorkspace(query: string, workspaceId?: string): Prom
   const supabase = getSupabaseClient()
   const pattern = `%${trimmed}%`
 
-  const [projects, knowledge, content, assets, architecture, activity, weekly] = await Promise.all([
+  const [projects, knowledge, assets, tasks, weekly] = await Promise.all([
     supabase
-      .from('projects')
+      .from('work_contexts')
       .select('id, name, description')
       .eq('workspace_id', targetWorkspaceId)
       .ilike('name', pattern)
@@ -41,28 +41,17 @@ export async function searchWorkspace(query: string, workspaceId?: string): Prom
       .ilike('title', pattern)
       .limit(5),
     supabase
-      .from('content_items')
-      .select('id, title, platform, project:projects!inner(workspace_id)')
-      .eq('project.workspace_id', targetWorkspaceId)
-      .ilike('title', pattern)
-      .limit(5),
-    supabase
       .from('assets')
       .select('id, file_name, asset_type')
       .eq('workspace_id', targetWorkspaceId)
       .ilike('file_name', pattern)
       .limit(5),
     supabase
-      .from('architecture_decisions')
-      .select('id, project_id, decision, impact, project:projects!inner(workspace_id)')
-      .eq('project.workspace_id', targetWorkspaceId)
-      .ilike('decision', pattern)
-      .limit(5),
-    supabase
-      .from('activity_logs')
-      .select('id, project_id, action, entity_type')
+      .from('tasks')
+      .select('id, title, priority, work_context_id')
       .eq('workspace_id', targetWorkspaceId)
-      .ilike('action', pattern)
+      .ilike('title', pattern)
+      .is('deleted_at', null)
       .limit(5),
     supabase
       .from('weekly_debriefs')
@@ -71,7 +60,7 @@ export async function searchWorkspace(query: string, workspaceId?: string): Prom
       .limit(5),
   ])
 
-  for (const response of [projects, knowledge, content, assets, architecture, activity, weekly]) {
+  for (const response of [projects, knowledge, assets, tasks, weekly]) {
     if (response.error) throw response.error
   }
 
@@ -90,13 +79,6 @@ export async function searchWorkspace(query: string, workspaceId?: string): Prom
       subtitle: item.category,
       path: '/knowledge',
     })),
-    ...(content.data ?? []).map((item) => ({
-      id: item.id,
-      type: 'content' as const,
-      title: item.title,
-      subtitle: item.platform,
-      path: '/content',
-    })),
     ...(assets.data ?? []).map((item) => ({
       id: item.id,
       type: 'asset' as const,
@@ -104,19 +86,12 @@ export async function searchWorkspace(query: string, workspaceId?: string): Prom
       subtitle: item.asset_type,
       path: '/assets',
     })),
-    ...(architecture.data ?? []).map((item) => ({
+    ...(tasks.data ?? []).map((item) => ({
       id: item.id,
-      type: 'architecture' as const,
-      title: item.decision,
-      subtitle: item.impact ?? undefined,
-      path: `/projects/${item.project_id}`,
-    })),
-    ...(activity.data ?? []).map((item) => ({
-      id: item.id,
-      type: 'activity' as const,
-      title: item.action,
-      subtitle: item.entity_type,
-      path: item.project_id ? `/projects/${item.project_id}` : '/mission-control',
+      type: 'content' as const,
+      title: item.title,
+      subtitle: `Priority: ${item.priority}`,
+      path: item.work_context_id ? `/projects/${item.work_context_id}` : '/mission-control',
     })),
     ...(weekly.data ?? [])
       .filter((item) =>

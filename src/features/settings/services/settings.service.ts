@@ -4,25 +4,22 @@ import { requireWorkspaceId } from '@/features/workspace/services/workspace-help
 export async function exportWorkspaceData(workspaceId?: string): Promise<Record<string, unknown>> {
   const targetWorkspaceId = requireWorkspaceId(workspaceId)
   const supabase = getSupabaseClient()
-  const [projects, knowledge, assets, content, debriefs] = await Promise.all([
-    supabase.from('projects').select('*').eq('workspace_id', targetWorkspaceId).is('deleted_at', null),
+  const [workContexts, knowledge, assets, tasks, debriefs] = await Promise.all([
+    supabase.from('work_contexts').select('*').eq('workspace_id', targetWorkspaceId).is('deleted_at', null),
     supabase.from('knowledge_entries').select('*').eq('workspace_id', targetWorkspaceId),
     supabase.from('assets').select('*').eq('workspace_id', targetWorkspaceId),
-    supabase
-      .from('content_items')
-      .select('*, project:projects!inner(workspace_id)')
-      .eq('project.workspace_id', targetWorkspaceId),
+    supabase.from('tasks').select('*').eq('workspace_id', targetWorkspaceId).is('deleted_at', null),
     supabase.from('weekly_debriefs').select('*').eq('workspace_id', targetWorkspaceId),
   ])
-  for (const response of [projects, knowledge, assets, content, debriefs])
+  for (const response of [workContexts, knowledge, assets, tasks, debriefs])
     if (response.error) throw response.error
   return {
     exportedAt: new Date().toISOString(),
     workspaceId: targetWorkspaceId,
-    projects: projects.data,
+    projects: workContexts.data,
     knowledge: knowledge.data,
     assets: assets.data,
-    content: content.data,
+    tasks: tasks.data,
     weeklyDebriefs: debriefs.data,
   }
 }

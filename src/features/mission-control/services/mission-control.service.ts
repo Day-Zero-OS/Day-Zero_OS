@@ -46,12 +46,6 @@ export type DashboardData = {
   } | null
 }
 
-type ActivityRow = {
-  action: string
-  created_at: string
-  project?: { name: string } | { name: string }[] | null
-}
-
 type KnowledgeRow = {
   title: string
   tags: string[] | null
@@ -68,7 +62,7 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
 
   // 1. Fetch active projects count in target workspace
   const { data: projects } = await supabase
-    .from('projects')
+    .from('work_contexts')
     .select('id, status')
     .eq('workspace_id', targetWorkspaceId)
     .is('deleted_at', null)
@@ -78,18 +72,20 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
 
   // 2. Fetch upcoming deadlines (both Milestones and Tasks) for workspace projects
   const { data: upcomingMilestones } = await supabase
-    .from('milestones')
-    .select('title, due_date, project:projects!inner(name, workspace_id)')
+    .from('tasks')
+    .select('title, due_date, project:work_contexts!inner(name, workspace_id)')
     .eq('project.workspace_id', targetWorkspaceId)
-    .neq('status', 'completed')
+    .eq('metadata->>type', 'milestone')
+    .neq('status', 'done')
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true })
     .limit(3)
 
   const { data: upcomingTasks } = await supabase
-    .from('project_tasks')
-    .select('title, due_date, project:projects!inner(name, workspace_id)')
+    .from('tasks')
+    .select('title, due_date, project:work_contexts!inner(name, workspace_id)')
     .eq('project.workspace_id', targetWorkspaceId)
+    .or('metadata->>type.is.null,metadata->>type.neq.milestone')
     .neq('status', 'done')
     .not('due_date', 'is', null)
     .order('due_date', { ascending: true })
@@ -122,31 +118,8 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
     }
   })
 
-  // 3. Fetch recent activities for workspace
-  const { data: logs } = await supabase
-    .from('activity_log')
-    .select('id, action, created_at, project:projects(name)')
-    .eq('workspace_id', targetWorkspaceId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  const recentActivities: RecentActivity[] = ((logs || []) as unknown as ActivityRow[]).map((l) => {
-    const createdDate = new Date(l.created_at)
-    const diffHours = Math.round((Date.now() - createdDate.getTime()) / (1000 * 60 * 60))
-    let timeStr = 'Just now'
-    if (diffHours >= 24) {
-      timeStr = `${Math.floor(diffHours / 24)}d ago`
-    } else if (diffHours > 0) {
-      timeStr = `${diffHours}h ago`
-    }
-
-    return {
-      text: l.action,
-      project: getProjectName(l.project) || 'System',
-      time: timeStr,
-      iconType: l.action.toLowerCase().includes('complete') ? 'check' : 'edit',
-    }
-  })
+  // 3. Fetch recent activities for workspace (mocked to avoid querying non-existent activity_log in V2)
+  const recentActivities: RecentActivity[] = []
 
   // 4. Fetch recent knowledge in workspace
   const { data: knowledge } = await supabase
@@ -167,22 +140,24 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
   const startOfWeekStr = startOfWeek.toISOString().split('T')[0]
 
   const { count: weeklyCompletedCount } = await supabase
-    .from('milestones')
-    .select('id, project:projects!inner(workspace_id)', { count: 'exact', head: true })
-    .eq('project.workspace_id', targetWorkspaceId)
-    .eq('status', 'completed')
-    .gte('completed_date', startOfWeekStr)
+    .from('tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('workspace_id', targetWorkspaceId)
+    .eq('metadata->>type', 'milestone')
+    .eq('status', 'done')
+    .gte('updated_at', startOfWeekStr)
 
   const { count: weeklyTotalCount } = await supabase
-    .from('milestones')
-    .select('id, project:projects!inner(workspace_id)', { count: 'exact', head: true })
-    .eq('project.workspace_id', targetWorkspaceId)
+    .from('tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('workspace_id', targetWorkspaceId)
+    .eq('metadata->>type', 'milestone')
     .gte('due_date', startOfWeekStr)
 
   // 6. Get today's top-priority action in workspace
   const { data: topPriorityTask } = await supabase
-    .from('project_tasks')
-    .select('title, priority, due_date, project:projects!inner(name, workspace_id)')
+    .from('tasks')
+    .select('title, priority, due_date, project:work_contexts!inner(name, workspace_id)')
     .eq('project.workspace_id', targetWorkspaceId)
     .neq('status', 'done')
     .order('priority', { ascending: false })
@@ -208,13 +183,14 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
     }
   }
 
-  // 7. Get current sprint dynamically based on Milestones in workspace
+  // 7. Get current sprint dynamically based on Tasks (milestones) in workspace
   let currentSprint: DashboardData['currentSprint'] = null
   const { data: activeSprint } = await supabase
-    .from('milestones')
-    .select('title, status, progress, project:projects!inner(workspace_id)')
+    .from('tasks')
+    .select('title, status, project:work_contexts!inner(workspace_id)')
     .eq('project.workspace_id', targetWorkspaceId)
-    .neq('status', 'completed')
+    .eq('metadata->>type', 'milestone')
+    .neq('status', 'done')
     .order('due_date', { ascending: true })
     .limit(1)
 
@@ -222,15 +198,16 @@ export async function fetchDashboardData(workspaceId?: string): Promise<Dashboar
     currentSprint = {
       title: activeSprint[0].title,
       status: activeSprint[0].status === 'in-progress' ? 'Active Sprint' : 'Planned Sprint',
-      progress: activeSprint[0].progress || 0,
+      progress: activeSprint[0].status === 'done' ? 100 : activeSprint[0].status === 'in-progress' ? 50 : 0,
     }
   } else {
     const { data: lastCompleted } = await supabase
-      .from('milestones')
-      .select('title, status, progress, project:projects!inner(workspace_id)')
+      .from('tasks')
+      .select('title, status, project:work_contexts!inner(workspace_id)')
       .eq('project.workspace_id', targetWorkspaceId)
-      .eq('status', 'completed')
-      .order('completed_date', { ascending: false })
+      .eq('metadata->>type', 'milestone')
+      .eq('status', 'done')
+      .order('updated_at', { ascending: false })
       .limit(1)
 
     if (lastCompleted && lastCompleted.length > 0) {
